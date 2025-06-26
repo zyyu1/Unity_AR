@@ -4,6 +4,7 @@ import math
 
 # Define the UDP target address and port
 UDP_IP = "127.0.0.1"  # Localhost, change to the receiver's IP if needed
+#UDP_IP = "192.168.5.1"
 UDP_PORT = 5005  # Port to send data to
 
 # Define the device name (Tx or Rx)

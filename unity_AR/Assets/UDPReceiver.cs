@@ -1,85 +1,211 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
+using System.Threading;
+using System.Collections.Concurrent;
 using UnityEngine;
-using TMPro; // For displaying data in UI
+using TMPro;
+using UnityEngine.UI;
 
 public class UDPReceiver : MonoBehaviour
 {
-    // UDP server settings
-    public string serverAddress = "127.0.0.1";  // Localhost, change if needed
-    public int serverPort = 5005;               // Same port as sender
+    public string serverAddress = "127.0.0.1";
+    //public string serverAddress = "192.168.5.1";
+    public int serverPort = 5005;
+    public bool connectionStart = false;
+
+    public TMP_Text displayText;
+    public TMP_Text connectButtonText;
+    public Button connectButton;
+    public Button stopButton;
+    public Button showLogsButton;
+
+    private Thread receiveThread;
     private UdpClient udpClient;
-    private IPEndPoint endPoint;
     private bool isReceiving = false;
+    private bool showLogs = true;
 
-    // Bool to control whether to start the connection automatically
-    public bool connectionStart = false;        // Set to false by default
+    private readonly ConcurrentQueue<string> messageQueue = new ConcurrentQueue<string>();
 
-    // Event for when new data is received
-    public event Action<string> OnDataReceived;
+    public GameObject txBeam;
+    public GameObject rxBeam;
 
-    // UI element to show received data
-    public TextMeshProUGUI displayText; // Assign this in the Inspector
+    private string lastReceivedMessage = "";
 
-    // Start is called before the first frame update
+    public BeamRotate txRotator;
+    public BeamRotate rxRotator;
+
+
+
+
     void Start()
     {
-        // Only connect if connectionStart is true
+        if (connectButton != null)
+            connectButton.onClick.AddListener(StartReceiving);
+        if (stopButton != null)
+            stopButton.onClick.AddListener(StopReceiving);
+        if (showLogsButton != null)
+            showLogsButton.onClick.AddListener(ToggleLogs);
+
         if (connectionStart)
         {
-            ConnectToServer();
+            StartReceiving();
+            UpdateButtonText(true);
         }
     }
 
-    // Method to start the connection
-    public void ConnectToServer()
+    void Update()
     {
-        endPoint = new IPEndPoint(IPAddress.Parse(serverAddress), serverPort);
-        udpClient = new UdpClient(serverPort);
-        isReceiving = true;
-        ReceiveData();
+        while (messageQueue.TryDequeue(out var message))
+        {
+            lastReceivedMessage = message;
+
+            if (displayText != null && showLogs)
+            {
+                displayText.text = message;
+            }
+
+            if (showLogs)
+            {
+                Debug.Log(message);
+            }
+
+            ApplyRotation(message);
+        }
     }
 
-    // Receive data asynchronously
-    private async void ReceiveData()
+
+
+
+
+
+    public void StartReceiving()
     {
+        if (isReceiving)
+        {
+            Debug.Log("Already receiving.");
+            return;
+        }
+
+        try
+        {
+            udpClient = new UdpClient(serverPort);
+            isReceiving = true;
+            receiveThread = new Thread(ReceiveLoop);
+            receiveThread.IsBackground = true;
+            receiveThread.Start();
+            Debug.Log("UDP Receiver started.");
+            UpdateButtonText(true);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Failed to start UDP: " + ex.Message);
+        }
+    }
+
+    public void StopReceiving()
+    {
+        if (!isReceiving)
+        {
+            Debug.Log("Receiver not running.");
+            return;
+        }
+
+        isReceiving = false;
+        udpClient?.Close();
+        receiveThread?.Join();
+        Debug.Log("UDP Receiver stopped.");
+        UpdateButtonText(false);
+    }
+
+    private void ReceiveLoop()
+    {
+        IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, serverPort);
+
         try
         {
             while (isReceiving)
             {
-                // Wait for data to arrive
-                var result = await udpClient.ReceiveAsync();
-
-                // Convert the received bytes to a string (raw data)
-                string receivedMessage = System.Text.Encoding.UTF8.GetString(result.Buffer);
-                
-                // Log the raw data
-                Debug.Log($"Received raw data: {receivedMessage}");
-
-                // Trigger the event to notify that new data has been received
-                OnDataReceived?.Invoke(receivedMessage);
-
-                // Update UI text if assigned
-                if (displayText != null)
-                {
-                    displayText.text = receivedMessage;
-                }
+                byte[] data = udpClient.Receive(ref endPoint);
+                string message = Encoding.UTF8.GetString(data);
+                messageQueue.Enqueue(message);
             }
         }
-        catch (Exception e)
+        catch (SocketException ex)
         {
-            Debug.LogError($"Error receiving data: {e.Message}");
+            Debug.LogWarning("UDP Receive interrupted: " + ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("UDP Receive Error: " + ex.Message);
         }
     }
 
-    // OnDisable, close the UDP client when the object is disabled
-    private void OnDisable()
+    private void UpdateButtonText(bool connected)
     {
-        isReceiving = false;
-        if (udpClient != null)
+        if (connectButtonText != null)
         {
-            udpClient.Close();
+            connectButtonText.text = connected ? "connected" : "connect";
         }
     }
+
+    public void ToggleLogs()
+    {
+        showLogs = !showLogs;
+
+        if (!showLogs && displayText != null)
+        {
+            displayText.text = "";
+        }
+
+        Debug.Log($"[UI] ShowLogs = {showLogs}");
+    }
+
+
+
+
+    void OnApplicationQuit()
+    {
+        StopReceiving();
+    }
+
+    private string ExtractValue(string message, string key)
+    {
+        int start = message.IndexOf(key + ":") + key.Length + 1;
+        int end = message.IndexOf(",", start);
+        if (end == -1) end = message.Length;
+        return message.Substring(start, end - start).Trim().Split(' ')[0];
+    }
+
+    private void ApplyRotation(string message)
+    {
+        try
+        {
+            if (message.Contains("Device:") && message.Contains("Azimuth:") && message.Contains("Elevation:"))
+            {
+                string device = ExtractValue(message, "Device");
+                float azimuth = float.Parse(ExtractValue(message, "Azimuth"));
+                float elevation = float.Parse(ExtractValue(message, "Elevation"));
+
+                Quaternion rotation = Quaternion.Euler(elevation, azimuth, 0); // x=elevation, y=azimuth
+
+                if (device == "Tx" && txBeam != null)
+                    txBeam.transform.rotation = rotation;
+                else if (device == "Rx" && rxBeam != null)
+                    rxBeam.transform.rotation = rotation;
+                if (displayText != null && showLogs)
+                {
+                    displayText.text = $"{message}\nAzimuth: {azimuth:F1}°, Elevation: {elevation:F1}°";
+                }
+
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("Failed to apply rotation: " + ex.Message);
+        }
+    }
+
+
 }
