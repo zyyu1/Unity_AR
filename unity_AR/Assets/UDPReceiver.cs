@@ -13,7 +13,7 @@ public class UDPReceiver : MonoBehaviour
     public string serverAddress = "127.0.0.1";
     //public string serverAddress = "192.168.5.1";
     public int serverPort = 5005;
-    public bool connectionStart = false;
+    public bool connectionStart = true;
 
     public TMP_Text displayText;
     public TMP_Text connectButtonText;
@@ -35,6 +35,8 @@ public class UDPReceiver : MonoBehaviour
 
     public BeamRotate txRotator;
     public BeamRotate rxRotator;
+
+    public event Action<string> OnDataReceived;
 
 
 
@@ -95,6 +97,8 @@ public class UDPReceiver : MonoBehaviour
             receiveThread = new Thread(ReceiveLoop);
             receiveThread.IsBackground = true;
             receiveThread.Start();
+            Debug.Log($" UDPReceiver listening on port {serverPort}");
+
             Debug.Log("UDP Receiver started.");
             UpdateButtonText(true);
         }
@@ -129,7 +133,9 @@ public class UDPReceiver : MonoBehaviour
             {
                 byte[] data = udpClient.Receive(ref endPoint);
                 string message = Encoding.UTF8.GetString(data);
+                Debug.Log($"UDP Raw Received: {message}"); 
                 messageQueue.Enqueue(message);
+
             }
         }
         catch (SocketException ex)

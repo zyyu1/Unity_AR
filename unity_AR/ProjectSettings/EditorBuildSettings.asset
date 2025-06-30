@@ -8,9 +8,12 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/MobileARScene.unity
     guid: 9fc0d4010bbf28b4594072e72b8655ab
-  - enabled: 1
-    path: Assets/Scenes/ARScene.unity
+  - enabled: 0
+    path: Assets/_ARPortal/Scenes/WitchesHut/ARScene.unity
     guid: f0ac02f96c45e314caaee5b8e9d967c5
+  - enabled: 1
+    path: Assets/_ARPortal/Scenes/AR_Portal.unity
+    guid: 3304f768db7bd2445bd81d7dd508b885
   m_configObjects:
     UnityEditor.XR.ARCore.ARCoreSettings: {fileID: 11400000, guid: c2a6209ba4128fc41b388f47e8935576, type: 2}
     com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: 77f2f5c5624753a43aae0b59c50c812a, type: 2}
