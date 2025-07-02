@@ -20,8 +20,10 @@ public class BeamController : MonoBehaviour
         }
     }
 
-    void HandleData(string message)
+    public void HandleData(string message)
     {
+        Debug.Log($"[DEBUG] BeamController.HandleData CALLED");
+
         Debug.Log("Received in Unity: " + message);
 
         float azimuth = ParseValue(message, "Azimuth");

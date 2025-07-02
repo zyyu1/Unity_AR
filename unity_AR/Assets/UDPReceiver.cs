@@ -43,19 +43,10 @@ public class UDPReceiver : MonoBehaviour
 
     void Start()
     {
-        if (connectButton != null)
-            connectButton.onClick.AddListener(StartReceiving);
-        if (stopButton != null)
-            stopButton.onClick.AddListener(StopReceiving);
-        if (showLogsButton != null)
-            showLogsButton.onClick.AddListener(ToggleLogs);
-
-        if (connectionStart)
-        {
-            StartReceiving();
-            UpdateButtonText(true);
-        }
+        StartReceiving(); 
+        UpdateButtonText(true);
     }
+
 
     void Update()
     {
@@ -73,14 +64,11 @@ public class UDPReceiver : MonoBehaviour
                 Debug.Log(message);
             }
 
+            OnDataReceived?.Invoke(message); 
+
             ApplyRotation(message);
         }
     }
-
-
-
-
-
 
     public void StartReceiving()
     {
@@ -97,7 +85,7 @@ public class UDPReceiver : MonoBehaviour
             receiveThread = new Thread(ReceiveLoop);
             receiveThread.IsBackground = true;
             receiveThread.Start();
-            Debug.Log($" UDPReceiver listening on port {serverPort}");
+            Debug.Log($"UDPReceiver listening on port {serverPort}");
 
             Debug.Log("UDP Receiver started.");
             UpdateButtonText(true);
@@ -133,8 +121,10 @@ public class UDPReceiver : MonoBehaviour
             {
                 byte[] data = udpClient.Receive(ref endPoint);
                 string message = Encoding.UTF8.GetString(data);
-                Debug.Log($"UDP Raw Received: {message}"); 
+                Debug.Log($"UDP Raw Received: {message}");
                 messageQueue.Enqueue(message);
+                OnDataReceived?.Invoke(message); 
+
 
             }
         }
